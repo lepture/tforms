@@ -1,5 +1,9 @@
 
+import re
+import itertools
 from tornado.escape import to_unicode, utf8, xhtml_escape
+
+__all__ ['BaseForm', 'Form', 'ValidationError', 'StopValidation', 'html_params', 'Field']
 
 class BaseForm(object):
     """
@@ -87,10 +91,7 @@ class BaseForm(object):
             field, if provided.
         """
         if formdata is not None and not hasattr(formdata, 'getlist'):
-            if hasattr(formdata, 'getall'):
-                formdata = WebobInputWrapper(formdata)
-            else:
-                raise TypeError("formdata should be a multidict-type wrapper that supports the 'getlist' method")
+            formdata = _TornadoArgumentsWrapper(formdata)
 
         for name, field, in self._fields.iteritems():
             if obj is not None and hasattr(obj, name):
@@ -194,14 +195,13 @@ class Form(BaseForm):
     """
     __metaclass__ = FormMeta
 
-    def __init__(self, formdata=None, obj=None, prefix='', **kwargs):
+    def __init__(self, handler=None, obj=None, prefix='', **kwargs):
         """
-        :param formdata:
-            Used to pass data coming from the enduser, usually `request.POST` or
-            equivalent.
+        :param handler:
+            Used to pass handler, usually `self`.
         :param obj:
-            If `formdata` has no data for a field, the form will try to get it
-            from the passed object.
+            If `handler.request.arguments` has no data for a field, the form
+            will try to get it from the passed object.
         :param prefix:
             If provided, all fields will have their name prefixed with the
             value.
@@ -217,7 +217,8 @@ class Form(BaseForm):
             # attributes with the same names.
             setattr(self, name, field)
 
-        self.process(formdata, obj, **kwargs)
+        self.process(handler.request.arguments, obj, **kwargs)
+        self.handler = handler
         self.obj = obj
 
     def __iter__(self):
@@ -239,6 +240,9 @@ class Form(BaseForm):
         except KeyError:
             super(Form, self).__delattr__(name)
 
+    def _get_locale(self):
+        return self.handler.locale
+
     def validate(self):
         """
         Validates the form by calling `validate` on each field, passing any
@@ -252,14 +256,46 @@ class Form(BaseForm):
 
         return super(Form, self).validate(extra)
 
+class ValidationError(ValueError):
+    """
+    Raised when a validator fails to validate its input.
+    """
+    def __init__(self, message=None, *args, **kwargs):
+        ValueError.__init__(self, to_unicode(message), *args, **kwargs)
 
-class DummyLocale(object):
-    def translate(self, message, plural_message=None, count=None):
-        if plural_message is not None:
-            assert count is not None
-            return plural_message
-        return message
+class StopValidation(Exception):
+    """
+    Causes the validation chain to stop.
 
+    If StopValidation is raised, no more validators in the validation chain are
+    called. If raised with a message, the message will be added to the errors
+    list.
+    """
+    def __init__(self, message=None, *args, **kwargs):
+        Exception.__init__(self, to_unicode(message), *args, **kwargs)
+
+
+def html_params(**kwargs):
+    """
+    Generate HTML parameters from inputted keyword arguments.
+
+    The output value is sorted by the passed keys, to provide consistent output
+    each time this function is called with the same parameters.  Because of the
+    frequent use of the normally reserved keywords `class` and `for`, suffixing
+    these with an underscore will allow them to be used.
+
+    >>> html_params(name='text1', id='f', class_='text')
+    'class="text" id="f" name="text1"'
+    """
+    params = []
+    for k,v in sorted(kwargs.iteritems()):
+        if k in ('class_', 'for_'):
+            k = k[:-1]
+        if v is True:
+            params.append(k)
+        else:
+            params.append('%s="%s"' % (to_unicode(k), xhtml_escape(to_unicode(v))))
+    return ' '.join(params)
 
 _unset_value = object()
 class Field(object):
@@ -270,7 +306,7 @@ class Field(object):
     errors = tuple()
     process_errors = tuple()
     _formfield = True
-    _locale = DummyLocale()
+    _locale = _DummyLocale()
 
     def __new__(cls, *args, **kwargs):
         if '_form' in kwargs and '_name' in kwargs:
@@ -280,7 +316,7 @@ class Field(object):
 
     def __init__(self, label=None, validators=None, filters=tuple(),
                  description='', id=None, default=None, widget=None,
-                 _form=None, _name=None, _prefix='', _locale=None):
+                 _form=None, _name=None, _prefix='fm-', _locale=None):
         """
         Construct a new field.
 
@@ -326,17 +362,12 @@ class Field(object):
             validators = []
         self.validators = validators
         self.filters = filters
-        self.description = description
+        self.description = to_unicode(description)
         self.type = type(self).__name__
         self.default = default
         self.raw_data = None
         if widget:
             self.widget = widget
-        self.flags = Flags()
-        for v in validators:
-            flags = getattr(v, 'field_flags', ())
-            for f in flags:
-                setattr(self.flags, f, True)
 
     def __unicode__(self):
         """
@@ -350,14 +381,7 @@ class Field(object):
         Returns a HTML representation of the field. For more powerful rendering,
         see the `__call__` method.
         """
-        return self()
-
-    def __html__(self):
-        """
-        Returns a HTML representation of the field. For more powerful rendering,
-        see the `__call__` method.
-        """
-        return self()
+        return utf8(self())
 
     def __call__(self, **kwargs):
         """
@@ -391,10 +415,10 @@ class Field(object):
             self.pre_validate(form)
         except StopValidation as e:
             if e.args and e.args[0]:
-                self.errors.append(e.args[0])
+                self.errors.append(self.translate(e.args[0]))
             stop_validation = True
         except ValueError as e:
-            self.errors.append(e.args[0])
+            self.errors.append(self.translate(e.args[0]))
 
         # Run validators
         if not stop_validation:
@@ -403,17 +427,17 @@ class Field(object):
                     validator(form, self)
                 except StopValidation as e:
                     if e.args and e.args[0]:
-                        self.errors.append(e.args[0])
+                        self.errors.append(self.translate(e.args[0]))
                     stop_validation = True
                     break
                 except ValueError as e:
-                    self.errors.append(e.args[0])
+                    self.errors.append(self.translate(e.args[0]))
 
         # Call post_validate
         try:
             self.post_validate(form, stop_validation)
         except ValueError as e:
-            self.errors.append(e.args[0])
+            self.errors.append(self.translate(e.args[0]))
 
         return len(self.errors) == 0
 
@@ -459,7 +483,7 @@ class Field(object):
         try:
             self.process_data(data)
         except ValueError as e:
-            self.process_errors.append(e.args[0])
+            self.process_errors.append(self.translate(e.args[0]))
 
         if formdata:
             try:
@@ -469,13 +493,13 @@ class Field(object):
                     self.raw_data = []
                 self.process_formdata(self.raw_data)
             except ValueError as e:
-                self.process_errors.append(e.args[0])
+                self.process_errors.append(self.translate(e.args[0]))
 
-        for filter in self.filters:
+        for _filter in self.filters:
             try:
-                self.data = filter(self.data)
+                self.data = _filter(self.data)
             except ValueError as e:
-                self.process_errors.append(e.args[0])
+                self.process_errors.append(self.translate(e.args[0]))
 
     def process_data(self, value):
         """
@@ -498,7 +522,9 @@ class Field(object):
         :param valuelist: A list of strings to process.
         """
         if valuelist:
-            self.data = valuelist[0]
+            self.data = to_unicode(valuelist[0])
+        else:
+            self.data = to_unicode(None)
 
     def populate_obj(self, obj, name):
         """
@@ -508,6 +534,9 @@ class Field(object):
                it will be overridden. Use with caution.
         """
         setattr(obj, name, self.data)
+
+    def _value(self):
+        return to_unicode(self.data)
 
 
 class UnboundField(object):
@@ -527,29 +556,6 @@ class UnboundField(object):
     def __repr__(self):
         return '<UnboundField(%s, %r, %r)>' % (self.field_class.__name__, self.args, self.kwargs)
 
-def html_params(**kwargs):
-    """
-    Generate HTML parameters from inputted keyword arguments.
-
-    The output value is sorted by the passed keys, to provide consistent output
-    each time this function is called with the same parameters.  Because of the
-    frequent use of the normally reserved keywords `class` and `for`, suffixing
-    these with an underscore will allow them to be used.
-
-    >>> html_params(name='text1', id='f', class_='text')
-    'class="text" id="f" name="text1"'
-    """
-    params = []
-    for k,v in sorted(kwargs.iteritems()):
-        if k in ('class_', 'for_'):
-            k = k[:-1]
-        if v is True:
-            params.append(k)
-        else:
-            params.append('%s="%s"' % (to_unicode(k), xhtml_escape(to_unicode(v))))
-    return ' '.join(params)
-
-
 class Label(object):
     """
     An HTML form label.
@@ -564,9 +570,6 @@ class Label(object):
     def __unicode__(self):
         return self()
 
-    def __html__(self):
-        return self()
-
     def __call__(self, text=None, **kwargs):
         kwargs['for'] = self.field_id
         attributes = html_params(**kwargs)
@@ -574,4 +577,41 @@ class Label(object):
 
     def __repr__(self):
         return 'Label(%r, %r)' % (self.field_id, self.text)
+
+
+class _TornadoArgumentsWrapper(dict):
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def __delattr__(self, key):
+        try:
+            del self[key]
+        except KeyError:
+            raise AttributeError
+
+    def getlist(self, key):
+        try:
+            values = []
+            for v in self[key]:
+                v = to_unicode(v)
+                if isinstance(v, unicode):
+                    v = re.sub(r"[\x00-\x08\x0e-\x1f]", " ", v)
+                values.append(v)
+            return values
+        except KeyError:
+            raise AttributeError
+
+
+class _DummyLocale(object):
+    def translate(self, message, plural_message=None, count=None):
+        if plural_message is not None:
+            assert count is not None
+            return plural_message
+        return message
 
