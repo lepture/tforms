@@ -194,7 +194,7 @@ class TornadoForm(BaseForm):
     """
     __metaclass__ = FormMeta
 
-    def __init__(self, handler=None, obj=None, prefix='', **kwargs):
+    def __init__(self, handler=None, obj=None, prefix='fm-', **kwargs):
         """
         :param handler:
             Used to pass handler, usually `self`.

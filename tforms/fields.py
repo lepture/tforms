@@ -38,7 +38,7 @@ class Field(object):
 
     def __init__(self, label=None, validators=None, filters=tuple(),
                  description='', id=None, default=None, widget=None,
-                 _form=None, _name=None, _prefix='fm-', _locale=None):
+                 _form=None, _name=None, _prefix='', _locale=None):
         """
         Construct a new field.
 
@@ -72,11 +72,10 @@ class Field(object):
         returned instead. Call its :func:`bind` method with a form instance and
         a name to construct the field.
         """
-        self.short_name = _name
-        self.name = _prefix + _name
+        self.name = _name
         if _locale is not None:
             self._locale = _locale
-        self.id = id or self.name
+        self.id = id or _prefix + self.name
         if label is None:
             label = _name.replace('_', ' ').title()
         self.label = Label(self.id, label) 
