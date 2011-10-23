@@ -240,7 +240,7 @@ class TornadoForm(BaseForm):
         try:
             self.__delitem__(name)
         except KeyError:
-            super(Form, self).__delattr__(name)
+            super(TornadoForm, self).__delattr__(name)
 
     def _get_locale(self):
         if self.handler:
@@ -258,7 +258,7 @@ class TornadoForm(BaseForm):
             if inline is not None:
                 extra[name] = [inline]
 
-        return super(Form, self).validate(extra)
+        return super(TornadoForm, self).validate(extra)
 
 class _TornadoArgumentsWrapper(dict):
     def __getattr__(self, key):

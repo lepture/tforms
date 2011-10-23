@@ -1,4 +1,5 @@
 
+import itertools
 from tornado.escape import to_unicode
 from tforms import widgets
 from tforms.validators import StopValidation
@@ -445,3 +446,107 @@ class DateField(DateTimeField):
             except ValueError:
                 self.data = None
                 raise ValueError(self.translate('Not a valid date value'))
+
+
+
+class SelectFieldBase(Field):
+    option_widget = widgets.Option()
+
+    """
+    Base class for fields which can be iterated to produce options.
+
+    This isn't a field, but an abstract base class for fields which want to
+    provide this functionality.
+    """
+    def __init__(self, label=None, validators=None, option_widget=None, **kwargs):
+        super(SelectFieldBase, self).__init__(label, validators, **kwargs)
+
+        if option_widget is not None:
+            self.option_widget = option_widget
+
+    def iter_choices(self):
+        """
+        Provides data for choice widget rendering. Must return a sequence or
+        iterable of (value, label, selected) tuples.
+        """
+        raise NotImplementedError()
+
+    def __iter__(self):
+        opts = dict(widget=self.option_widget, _name=self.name, _form=None)
+        for i, (value, label, checked) in enumerate(self.iter_choices()):
+            opt = self._Option(label=label, id='%s-%d' % (self.id, i), **opts)
+            opt.process(None, value)
+            opt.checked = checked
+            yield opt
+
+    class _Option(Field):
+        checked = False
+
+        def _value(self):
+            return self.data
+
+
+class SelectField(SelectFieldBase):
+    widget = widgets.Select()
+
+    def __init__(self, label=None, validators=None, coerce=to_unicode, choices=None, **kwargs):
+        super(SelectField, self).__init__(label, validators, **kwargs)
+        self.coerce = coerce
+        self.choices = choices
+
+    def iter_choices(self):
+        for value, label in self.choices:
+            yield (value, label, self.coerce(value) == self.data)
+
+    def process_data(self, value):
+        try:
+            self.data = self.coerce(value)
+        except (ValueError, TypeError):
+            self.data = None
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            try:
+                self.data = self.coerce(valuelist[0])
+            except ValueError:
+                raise ValueError(self.translate('Invalid Choice: could not coerce'))
+
+    def pre_validate(self, form):
+        for v, _ in self.choices:
+            if self.data == v:
+                break
+        else:
+            raise ValueError(self.translate('Not a valid choice'))
+
+
+class SelectMultipleField(SelectField):
+    """
+    No different from a normal select field, except this one can take (and
+    validate) multiple choices.  You'll need to specify the HTML `rows`
+    attribute to the select field when rendering.
+    """
+    widget = widgets.Select(multiple=True)
+
+    def iter_choices(self):
+        for value, label in self.choices:
+            selected = self.data is not None and self.coerce(value) in self.data
+            yield (value, label, selected)
+
+    def process_data(self, value):
+        try:
+            self.data = list(self.coerce(v) for v in value)
+        except (ValueError, TypeError):
+            self.data = None
+
+    def process_formdata(self, valuelist):
+        try:
+            self.data = list(self.coerce(x) for x in valuelist)
+        except ValueError:
+            raise ValueError(self.translate('Invalid choice(s): one or more data inputs could not be coerced'))
+
+    def pre_validate(self, form):
+        if self.data:
+            values = list(c[0] for c in self.choices)
+            for d in self.data:
+                if d not in values:
+                    raise ValueError(self.translate("'%(value)s' is not a valid choice for this field") % dict(value=d))

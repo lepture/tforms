@@ -118,6 +118,16 @@ class Select(object):
             options['selected'] = True 
         return '<option %s>%s</option>' % (html_params(**options), xhtml_escape(to_unicode(label)))
 
+class Option(object):
+    """
+    Renders the individual option from a select field. 
+    
+    This is just a convenience for various custom rendering situations, and an
+    option by itself does not constitute an entire field.
+    """
+    def __call__(self, field, **kwargs):
+        return Select.render_option(field._value(), field.label.text, field.checked)
+
 class CheckboxInput(Input):
     """
     Render a checkbox.
