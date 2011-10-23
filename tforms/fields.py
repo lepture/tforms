@@ -135,7 +135,7 @@ class Field(object):
                 self.errors.append(e.args[0])
             stop_validation = True
         except ValueError as e:
-            self.errors.append(self.translate(e.args[0]))
+            self.errors.append(e.args[0])
 
         # Run validators
         if not stop_validation:
@@ -148,13 +148,13 @@ class Field(object):
                     stop_validation = True
                     break
                 except ValueError as e:
-                    self.errors.append(self.translate(e.args[0]))
+                    self.errors.append(e.args[0])
 
         # Call post_validate
         try:
             self.post_validate(form, stop_validation)
         except ValueError as e:
-            self.errors.append(self.translate(e.args[0]))
+            self.errors.append(e.args[0])
 
         return len(self.errors) == 0
 
@@ -200,7 +200,7 @@ class Field(object):
         try:
             self.process_data(data)
         except ValueError as e:
-            self.process_errors.append(self.translate(e.args[0]))
+            self.process_errors.append(e.args[0])
 
         if formdata:
             try:
@@ -210,13 +210,13 @@ class Field(object):
                     self.raw_data = []
                 self.process_formdata(self.raw_data)
             except ValueError as e:
-                self.process_errors.append(self.translate(e.args[0]))
+                self.process_errors.append(e.args[0])
 
         for _filter in self.filters:
             try:
                 self.data = _filter(self.data)
             except ValueError as e:
-                self.process_errors.append(self.translate(e.args[0]))
+                self.process_errors.append(e.args[0])
 
     def process_data(self, value):
         """
@@ -362,7 +362,7 @@ class IntegerField(TextField):
             try:
                 self.data = int(valuelist[0])
             except ValueError:
-                raise ValueError('Not a valid integer value')
+                raise ValueError(self.translate('Not a valid integer value'))
 
 
 class FloatField(TextField):
@@ -382,7 +382,7 @@ class FloatField(TextField):
             try:
                 self.data = float(valuelist[0])
             except ValueError:
-                raise ValueError('Not a valid float value')
+                raise ValueError(self.translate('Not a valid float value'))
 
 
 class BooleanField(Field):
@@ -429,7 +429,7 @@ class DateTimeField(Field):
                 self.data = datetime.datetime(*timetuple[:6])
             except ValueError:
                 self.data = None
-                raise ValueError('Not a valid value')
+                raise ValueError(self.translate('Not a valid datetime value'))
 
 
 class DateField(DateTimeField):
@@ -447,4 +447,4 @@ class DateField(DateTimeField):
                 self.data = datetime.date(*timetuple[:3])
             except ValueError:
                 self.data = None
-                raise ValueError('Not a valid value')
+                raise ValueError(self.translate('Not a valid date value'))

@@ -156,7 +156,7 @@ class Regexp(object):
         self.message = message
 
     def __call__(self, form, field):
-        if not self.regex.match(field.data or u''):
+        if not self.regex.match(field.data or ''):
             if self.message is None:
                 self.message = field.translate('Invalid input.')
 
@@ -213,8 +213,8 @@ class URL(Regexp):
         Error message to raise in case of a validation error.
     """
     def __init__(self, require_tld=True, message=None):
-        tld_part = (require_tld and ur'\.[a-z]{2,10}' or u'')
-        regex = ur'^[a-z]+://([^/:]+%s|([0-9]{1,3}\.){3}[0-9]{1,3})(:[0-9]+)?(\/.*)?$' % tld_part
+        tld_part = (require_tld and r'\.[a-z]{2,10}' or '')
+        regex = r'^[a-z]+://([^/:]+%s|([0-9]{1,3}\.){3}[0-9]{1,3})(:[0-9]+)?(\/.*)?$' % tld_part
         super(URL, self).__init__(regex, re.IGNORECASE, message)
 
     def __call__(self, form, field):
@@ -240,7 +240,7 @@ class AnyOf(object):
         self.values = values
         self.message = message
         if values_formatter is None:
-            values_formatter = lambda v: u', '.join(v)
+            values_formatter = lambda v: ', '.join(v)
         self.values_formatter = values_formatter
 
     def __call__(self, form, field):
