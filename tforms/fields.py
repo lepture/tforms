@@ -92,7 +92,7 @@ class Field(object):
             self.widget = widget
 
         for v in validators:
-            flag = getattr(v, 'field_flags', None)
+            flag = getattr(v, 'field_flag', None)
             if flag and flag == 'required':
                 self.required = True
             elif flag and flag == 'length' and v.max:
