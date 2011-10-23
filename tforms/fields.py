@@ -1,29 +1,301 @@
 
-from tornado.escape import to_unicode
-from tforms import Field, StopValidation, html_params
+from tornado.escape import to_unicode, utf8, xhtml_escape
+from tforms.widgets import html_params, TextInput
+from tforms.validators import StopValidation
 
-class Input(object):
+__all__ = (
+    'Field', 'TextField',
+)
+
+class _DummyLocale(object):
+    def translate(self, message, plural_message=None, count=None):
+        if plural_message is not None:
+            assert count is not None
+            return plural_message
+        return message
+
+_unset_value = object()
+class Field(object):
     """
-    Render a basic ``<input>`` field.
-
-    This is used as the basis for most of the other input fields.
-
-    By default, the `_value()` method will be called upon the associated field
-    to provide the ``value=`` HTML attribute.
+    Field base class
     """
+    widget = None
+    errors = tuple()
+    process_errors = tuple()
+    _formfield = True
+    _locale = _DummyLocale()
 
-    input_type = 'text'
+    def __new__(cls, *args, **kwargs):
+        if '_form' in kwargs and '_name' in kwargs:
+            return super(Field, cls).__new__(cls)
+        else:
+            return UnboundField(cls, *args, **kwargs)
 
-    def __init__(self, input_type=None):
-        if input_type is not None:
-            self.input_type = input_type
+    def __init__(self, label=None, validators=None, filters=tuple(),
+                 description='', id=None, default=None, widget=None,
+                 _form=None, _name=None, _prefix='fm-', _locale=None):
+        """
+        Construct a new field.
 
-    def __call__(self, field, **kwargs):
-        kwargs.setdefault('id', field.id)
-        kwargs.setdefault('type', self.input_type)
-        if 'value' not in kwargs:
-            kwargs['value'] = field._value()
-        return '<input %s>' % html_params(name=field.name, **kwargs)
+        :param label:
+            The label of the field. 
+        :param validators:
+            A sequence of validators to call when `validate` is called.
+        :param filters:
+            A sequence of filters which are run on input data by `process`.
+        :param description:
+            A description for the field, typically used for help text.
+        :param id:
+            An id to use for the field. A reasonable default is set by the form,
+            and you shouldn't need to set this manually.
+        :param default:
+            The default value to assign to the field, if no form or object
+            input is provided. May be a callable.
+        :param widget:
+            If provided, overrides the widget used to render the field.
+        :param _form:
+            The form holding this field. It is passed by the form itself during
+            construction. You should never pass this value yourself.
+        :param _name:
+            The name of this field, passed by the enclosing form during its
+            construction. You should never pass this value yourself.
+        :param _prefix:
+            The prefix to prepend to the form name of this field, passed by
+            the enclosing form during construction.
+
+        If `_form` and `_name` isn't provided, an :class:`UnboundField` will be
+        returned instead. Call its :func:`bind` method with a form instance and
+        a name to construct the field.
+        """
+        self.short_name = _name
+        self.name = _prefix + _name
+        if _locale is not None:
+            self._locale = _locale
+        self.id = id or self.name
+        if label is None:
+            label = _name.replace('_', ' ').title()
+        self.label = Label(self.id, label) 
+        if validators is None:
+            validators = []
+        self.validators = validators
+        self.filters = filters
+        self.description = to_unicode(description)
+        self.type = type(self).__name__
+        self.default = default
+        self.raw_data = None
+        if widget:
+            self.widget = widget
+
+    def __unicode__(self):
+        """
+        Returns a HTML representation of the field. For more powerful rendering,
+        see the `__call__` method.
+        """
+        return self()
+
+    def __str__(self):
+        """
+        Returns a HTML representation of the field. For more powerful rendering,
+        see the `__call__` method.
+        """
+        return utf8(self())
+
+    def __call__(self, **kwargs):
+        """
+        Render this field as HTML, using keyword args as additional attributes.
+
+        Any HTML attribute passed to the method will be added to the tag
+        and entity-escaped properly.
+        """
+        return self.widget(self, **kwargs)
+
+    def translate(self, message, plural_message=None, count=None):
+        return self._locale.translate(message, plural_message, count)
+
+    def validate(self, form, extra_validators=tuple()):
+        """
+        Validates the field and returns True or False. `self.errors` will
+        contain any errors raised during validation. This is usually only
+        called by `Form.validate`.
+
+        Subfields shouldn't override this, but rather override either
+        `pre_validate`, `post_validate` or both, depending on needs.
+
+        :param form: The form the field belongs to.
+        :param extra_validators: A list of extra validators to run.
+        """
+        self.errors = list(self.process_errors)
+        stop_validation = False
+
+        # Call pre_validate
+        try:
+            self.pre_validate(form)
+        except StopValidation as e:
+            if e.args and e.args[0]:
+                self.errors.append(e.args[0])
+            stop_validation = True
+        except ValueError as e:
+            self.errors.append(self.translate(e.args[0]))
+
+        # Run validators
+        if not stop_validation:
+            for validator in itertools.chain(self.validators, extra_validators):
+                try:
+                    validator(form, self)
+                except StopValidation as e:
+                    if e.args and e.args[0]:
+                        self.errors.append(e.args[0])
+                    stop_validation = True
+                    break
+                except ValueError as e:
+                    self.errors.append(self.translate(e.args[0]))
+
+        # Call post_validate
+        try:
+            self.post_validate(form, stop_validation)
+        except ValueError as e:
+            self.errors.append(self.translate(e.args[0]))
+
+        return len(self.errors) == 0
+
+    def pre_validate(self, form):
+        """
+        Override if you need field-level validation. Runs before any other
+        validators.
+
+        :param form: The form the field belongs to.
+        """
+        pass
+
+    def post_validate(self, form, validation_stopped):
+        """
+        Override if you need to run any field-level validation tasks after
+        normal validation. This shouldn't be needed in most cases.
+
+        :param form: The form the field belongs to.
+        :param validation_stopped:
+            `True` if any validator raised StopValidation.
+        """
+        pass
+
+    def process(self, formdata, data=_unset_value):
+        """
+        Process incoming data, calling process_data, process_formdata as needed,
+        and run filters.
+
+        If `data` is not provided, process_data will be called on the field's
+        default.
+
+        Field subclasses usually won't override this, instead overriding the
+        process_formdata and process_data methods. Only override this for
+        special advanced processing, such as when a field encapsulates many
+        inputs.
+        """
+        self.process_errors = []
+        if data is _unset_value:
+            try:
+                data = self.default()
+            except TypeError:
+                data = self.default
+        try:
+            self.process_data(data)
+        except ValueError as e:
+            self.process_errors.append(self.translate(e.args[0]))
+
+        if formdata:
+            try:
+                if self.name in formdata:
+                    self.raw_data = formdata.getlist(self.name)
+                else:
+                    self.raw_data = []
+                self.process_formdata(self.raw_data)
+            except ValueError as e:
+                self.process_errors.append(self.translate(e.args[0]))
+
+        for _filter in self.filters:
+            try:
+                self.data = _filter(self.data)
+            except ValueError as e:
+                self.process_errors.append(self.translate(e.args[0]))
+
+    def process_data(self, value):
+        """
+        Process the Python data applied to this field and store the result.
+
+        This will be called during form construction by the form's `kwargs` or
+        `obj` argument.
+
+        :param value: The python object containing the value to process.
+        """
+        self.data = value
+
+    def process_formdata(self, valuelist):
+        """
+        Process data received over the wire from a form.
+
+        This will be called during form construction with data supplied
+        through the `formdata` argument.
+
+        :param valuelist: A list of strings to process.
+        """
+        if valuelist:
+            self.data = to_unicode(valuelist[0])
+        else:
+            self.data = to_unicode(None)
+
+    def populate_obj(self, obj, name):
+        """
+        Populates `obj.<name>` with the field's data.
+
+        :note: This is a destructive operation. If `obj.<name>` already exists,
+               it will be overridden. Use with caution.
+        """
+        setattr(obj, name, self.data)
+
+    def _value(self):
+        return to_unicode(self.data)
+
+class UnboundField(object):
+    _formfield = True
+    creation_counter = 0
+
+    def __init__(self, field_class, *args, **kwargs):
+        UnboundField.creation_counter += 1
+        self.field_class = field_class
+        self.args = args
+        self.kwargs = kwargs
+        self.creation_counter = UnboundField.creation_counter
+
+    def bind(self, form, name, prefix='', locale=None, **kwargs):
+        return self.field_class(_form=form, _prefix=prefix, _name=name, _locale=locale, *self.args, **dict(self.kwargs, **kwargs))
+
+    def __repr__(self):
+        return '<UnboundField(%s, %r, %r)>' % (self.field_class.__name__, self.args, self.kwargs)
+
+class Label(object):
+    """
+    An HTML form label.
+    """
+    def __init__(self, field_id, text):
+        self.field_id = field_id
+        self.text = text
+
+    def __str__(self):
+        return utf8(self())
+
+    def __unicode__(self):
+        return self()
+
+    def __call__(self, text=None, **kwargs):
+        kwargs['for'] = self.field_id
+        attributes = html_params(**kwargs)
+        return '<label %s>%s</label>' % (attributes, to_unicode(text) or to_unicode(self.text))
+
+    def __repr__(self):
+        return 'Label(%r, %r)' % (self.field_id, self.text)
+
+
+
 
 
 class TextField(Field):
@@ -32,7 +304,7 @@ class TextField(Field):
     represents an ``<input type="text">``.
     """
 
-    widget = Input()
+    widget = TextInput()
 
     def __init__(self, required=False, maxlength=None, **kwargs):
         super(TextField, self).__init__(**kwargs)
@@ -45,10 +317,11 @@ class TextField(Field):
         return self.widget(self, **kwargs)
 
     def pre_validate(self, form):
-        if self.maxlength and len(self.data) > self.maxlength:
-            raise StopValidation(self.translate("Field cannot be longer than %d characters",self.maxlength))
         if self.required and not self.data:
             raise StopValidation(self.translate("This field is required"))
+
+        if self.maxlength and len(self.data) > self.maxlength:
+            raise StopValidation(self.translate("Field cannot be longer than %d characters",self.maxlength))
 
     def _value(self):
         if self.data:
