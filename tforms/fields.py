@@ -22,6 +22,8 @@ class Field(object):
     widget = None
     errors = tuple()
     process_errors = tuple()
+    required = False
+    maxlength = None
     _formfield = True
     _locale = _DummyLocale()
 
@@ -85,6 +87,13 @@ class Field(object):
         self.raw_data = None
         if widget:
             self.widget = widget
+
+        for v in validators:
+            flag = getattr(v, 'field_flags', None)
+            if flag and flag == 'required':
+                self.required = True
+            elif flag and flag == 'length' and v.max:
+                self.maxlength = v.max
 
     def __unicode__(self):
         """
@@ -303,22 +312,10 @@ class TextField(Field):
 
     widget = widgets.TextInput()
 
-    def __init__(self, required=False, maxlength=None, **kwargs):
-        super(TextField, self).__init__(**kwargs)
-        self.maxlength = maxlength
-        self.required = required
-
     def __call__(self, **kwargs):
         if self.maxlength:
             kwargs['maxlength'] = str(self.maxlength)
         return self.widget(self, **kwargs)
-
-    def pre_validate(self, form):
-        if self.required and not self.data:
-            raise StopValidation(self.translate("This field is required"))
-
-        if self.maxlength and len(self.data) > self.maxlength:
-            raise StopValidation(self.translate("Field cannot be longer than %d characters",self.maxlength))
 
     def _value(self):
         if self.data:

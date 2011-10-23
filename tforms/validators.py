@@ -73,6 +73,9 @@ class Length(object):
         interpolated using `%(min)d` and `%(max)d` if desired. Useful defaults
         are provided depending on the existence of min and max.
     """
+
+    field_flag = 'length'
+
     def __init__(self, min=-1, max=-1, message=None):
         assert min != -1 or max!=-1, 'At least one of `min` or `max` must be specified.'
         assert max == -1 or min <= max, '`min` cannot be more than `max`.'
@@ -134,6 +137,27 @@ class NumberRange(object):
 
             raise ValidationError(self.message % dict(min=self.min, max=self.max))
 
+
+class Required(object):
+    """
+    Validates that the field contains data. This validator will stop the
+    validation chain on error.
+
+    :param message:
+        Error message to raise in case of a validation error.
+    """
+    field_flag = 'required'
+
+    def __init__(self, message=None):
+        self.message = message
+
+    def __call__(self, form, field):
+        if not field.data or isinstance(field.data, basestring) and not field.data.strip():
+            if self.message is None:
+                self.message = field.gettext(u'This field is required.')
+
+            field.errors[:] = []
+            raise StopValidation(self.message)
 
 
 class Regexp(object):
