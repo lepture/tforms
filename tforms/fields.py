@@ -1,6 +1,6 @@
 
-from tornado.escape import to_unicode, utf8, xhtml_escape
-from tforms.widgets import html_params, TextInput
+from tornado.escape import to_unicode
+from tforms import widgets
 from tforms.validators import StopValidation
 
 __all__ = (
@@ -288,14 +288,11 @@ class Label(object):
 
     def __call__(self, text=None, **kwargs):
         kwargs['for'] = self.field_id
-        attributes = html_params(**kwargs)
+        attributes = widgets.html_params(**kwargs)
         return '<label %s>%s</label>' % (attributes, to_unicode(text) or to_unicode(self.text))
 
     def __repr__(self):
         return 'Label(%r, %r)' % (self.field_id, self.text)
-
-
-
 
 
 class TextField(Field):
@@ -304,7 +301,7 @@ class TextField(Field):
     represents an ``<input type="text">``.
     """
 
-    widget = TextInput()
+    widget = widgets.TextInput()
 
     def __init__(self, required=False, maxlength=None, **kwargs):
         super(TextField, self).__init__(**kwargs)
@@ -327,3 +324,127 @@ class TextField(Field):
         if self.data:
             return to_unicode(self.data)
         return to_unicode('')
+
+class HiddenField(TextField):
+    """
+    Represents an ``<input type="hidden">``.
+    """
+    widget = widgets.HiddenInput()
+
+class TextAreaField(TextField):
+    """
+    This field represents an HTML ``<textarea>`` and can be used to take
+    multi-line input.
+    """
+    widget = widgets.TextArea()
+
+
+class PasswordField(TextField):
+    """
+    Represents an ``<input type="password">``.
+    """
+    widget = widgets.PasswordInput()
+
+class IntegerField(TextField):
+    """
+    A text field, except all input is coerced to an integer.  Erroneous input
+    is ignored and will not be accepted as a value.
+    """
+    def _value(self):
+        if self.raw_data:
+            return self.raw_data[0]
+        elif self.data is not None:
+            return to_unicode(self.data)
+        return ''
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            try:
+                self.data = int(valuelist[0])
+            except ValueError:
+                raise ValueError('Not a valid integer value')
+
+
+class FloatField(TextField):
+    """
+    A text field, except all input is coerced to an float.  Erroneous input
+    is ignored and will not be accepted as a value.
+    """
+    def _value(self):
+        if self.raw_data:
+            return self.raw_data[0]
+        elif self.data is not None:
+            return to_unicode(self.data)
+        return ''
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            try:
+                self.data = float(valuelist[0])
+            except ValueError:
+                raise ValueError('Not a valid float value')
+
+
+class BooleanField(Field):
+    """
+    Represents an ``<input type="checkbox">``.
+    """
+    widget = widgets.CheckboxInput()
+
+    def process_data(self, value):
+        self.data = bool(value)
+
+    def process_formdata(self, valuelist):
+        # Checkboxes and submit buttons simply do not send a value when
+        # unchecked/not pressed. So the actual value="" doesn't matter for
+        # purpose of determining .data, only whether one exists or not.
+        self.data = bool(valuelist)
+
+    def _value(self):
+        if self.raw_data:
+            return to_unicode(self.raw_data[0])
+        return 'y'
+
+
+class DateTimeField(Field):
+    """
+    A text field which stores a `datetime.datetime` matching a format.
+    """
+    widget = widgets.TextInput()
+
+    def __init__(self, label=None, validators=None, format='%Y-%m-%d %H:%M:%S', **kwargs):
+        super(DateTimeField, self).__init__(label, validators, **kwargs)
+        self.format = format
+
+    def _value(self):
+        if self.raw_data:
+            return to_unicode(' '.join(self.raw_data))
+        return self.data and self.data.strftime(self.format) or ''
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            date_str = to_unicode(' '.join(valuelist))
+            try:
+                timetuple = time.strptime(date_str, self.format)
+                self.data = datetime.datetime(*timetuple[:6])
+            except ValueError:
+                self.data = None
+                raise ValueError('Not a valid value')
+
+
+class DateField(DateTimeField):
+    """
+    Same as DateTimeField, except stores a `datetime.date`.
+    """
+    def __init__(self, label=None, validators=None, format='%Y-%m-%d', **kwargs):
+        super(DateField, self).__init__(label, validators, format, **kwargs)
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            date_str = to_unicode(' '.join(valuelist))
+            try:
+                timetuple = time.strptime(date_str, self.format)
+                self.data = datetime.date(*timetuple[:3])
+            except ValueError:
+                self.data = None
+                raise ValueError('Not a valid value')
