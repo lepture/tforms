@@ -3,7 +3,7 @@ import re
 import itertools
 from tornado.escape import to_unicode, utf8, xhtml_escape
 
-__all__ ['BaseForm', 'Form', 'ValidationError', 'StopValidation', 'html_params', 'Field']
+__all__ = ['BaseForm', 'Form', 'ValidationError', 'StopValidation', 'html_params', 'Field']
 
 class BaseForm(object):
     """
@@ -210,6 +210,8 @@ class Form(BaseForm):
             form will assign the value of a matching keyword argument to the
             field, if provided.
         """
+        self.handler = handler
+        self.obj = obj
         super(Form, self).__init__(self._unbound_fields, prefix=prefix)
 
         for name, field in self._fields.iteritems():
@@ -217,9 +219,10 @@ class Form(BaseForm):
             # attributes with the same names.
             setattr(self, name, field)
 
-        self.process(handler.request.arguments, obj, **kwargs)
-        self.handler = handler
-        self.obj = obj
+        if handler:
+            self.process(handler.request.arguments, obj, **kwargs)
+        else:
+            self.process(None, obj, **kwargs)
 
     def __iter__(self):
         """ Iterate form fields in their order of definition on the form. """
@@ -241,7 +244,9 @@ class Form(BaseForm):
             super(Form, self).__delattr__(name)
 
     def _get_locale(self):
-        return self.handler.locale
+        if self.handler:
+            return self.handler.locale
+        return None
 
     def validate(self):
         """
@@ -296,6 +301,14 @@ def html_params(**kwargs):
         else:
             params.append('%s="%s"' % (to_unicode(k), xhtml_escape(to_unicode(v))))
     return ' '.join(params)
+
+
+class _DummyLocale(object):
+    def translate(self, message, plural_message=None, count=None):
+        if plural_message is not None:
+            assert count is not None
+            return plural_message
+        return message
 
 _unset_value = object()
 class Field(object):
@@ -415,7 +428,7 @@ class Field(object):
             self.pre_validate(form)
         except StopValidation as e:
             if e.args and e.args[0]:
-                self.errors.append(self.translate(e.args[0]))
+                self.errors.append(e.args[0])
             stop_validation = True
         except ValueError as e:
             self.errors.append(self.translate(e.args[0]))
@@ -427,7 +440,7 @@ class Field(object):
                     validator(form, self)
                 except StopValidation as e:
                     if e.args and e.args[0]:
-                        self.errors.append(self.translate(e.args[0]))
+                        self.errors.append(e.args[0])
                     stop_validation = True
                     break
                 except ValueError as e:
@@ -607,11 +620,4 @@ class _TornadoArgumentsWrapper(dict):
         except KeyError:
             raise AttributeError
 
-
-class _DummyLocale(object):
-    def translate(self, message, plural_message=None, count=None):
-        if plural_message is not None:
-            assert count is not None
-            return plural_message
-        return message
 

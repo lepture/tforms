@@ -1,6 +1,6 @@
 
 from tornado.escape import to_unicode
-from tforms import Field, html_params
+from tforms import Field, StopValidation, html_params
 
 class Input(object):
     """
@@ -23,7 +23,7 @@ class Input(object):
         kwargs.setdefault('type', self.input_type)
         if 'value' not in kwargs:
             kwargs['value'] = field._value()
-        return '<input %s>' % self.html_params(name=field.name, **kwargs)
+        return '<input %s>' % html_params(name=field.name, **kwargs)
 
 
 class TextField(Field):
@@ -33,3 +33,24 @@ class TextField(Field):
     """
 
     widget = Input()
+
+    def __init__(self, required=False, maxlength=None, **kwargs):
+        super(TextField, self).__init__(**kwargs)
+        self.maxlength = maxlength
+        self.required = required
+
+    def __call__(self, **kwargs):
+        if self.maxlength:
+            kwargs['maxlength'] = str(self.maxlength)
+        return self.widget(self, **kwargs)
+
+    def pre_validate(self, form):
+        if self.maxlength and len(self.data) > self.maxlength:
+            raise StopValidation(self.translate("Field cannot be longer than %d characters",self.maxlength))
+        if self.required and not self.data:
+            raise StopValidation(self.translate("This field is required"))
+
+    def _value(self):
+        if self.data:
+            return to_unicode(self.data)
+        return to_unicode('')
