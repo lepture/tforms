@@ -78,12 +78,12 @@ class Field(object):
         self.id = id or _prefix + self.name
         if label is None:
             label = _name.replace('_', ' ').title()
-        self.label = Label(self.id, label) 
+        self.label = Label(self.id, self.translate(label))
         if validators is None:
             validators = []
         self.validators = validators
         self.filters = filters
-        self.description = to_unicode(description)
+        self.description = self.translate(description)
         self.type = type(self).__name__
         self.default = default
         self.raw_data = None

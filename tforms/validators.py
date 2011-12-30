@@ -154,7 +154,7 @@ class Required(object):
     def __call__(self, form, field):
         if not field.data or isinstance(field.data, basestring) and not field.data.strip():
             if self.message is None:
-                self.message = field.gettext(u'This field is required.')
+                self.message = field.translate(u'This field is required.')
 
             field.errors[:] = []
             raise StopValidation(self.message)
