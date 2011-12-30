@@ -297,6 +297,8 @@ class Label(object):
 
     def __call__(self, text=None, **kwargs):
         kwargs['for'] = self.field_id
+        if 'class' not in kwargs or 'class_' not in kwargs:
+            kwargs['class'] = 'fm-label'
         attributes = widgets.html_params(**kwargs)
         return '<label %s>%s</label>' % (attributes, to_unicode(text) or to_unicode(self.text))
 

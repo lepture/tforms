@@ -1,8 +1,10 @@
 
 import re
 from tornado.escape import to_unicode
+from tornado.options import options
 
 __all__ = ['BaseForm', 'FormMeta', 'TornadoForm']
+
 
 class BaseForm(object):
     """
@@ -132,6 +134,7 @@ class BaseForm(object):
             self._errors = dict((name, f.errors) for name, f in self._fields.iteritems() if f.errors)
         return self._errors
 
+
 class FormMeta(type):
     """
     The metaclass for `Form` and any subclasses of `Form`.
@@ -184,6 +187,7 @@ class FormMeta(type):
             cls._unbound_fields = None
         type.__delattr__(cls, name)
 
+
 class TornadoForm(BaseForm):
     """
     Declarative Form base class. Extends BaseForm's core behaviour allowing
@@ -191,15 +195,22 @@ class TornadoForm(BaseForm):
 
     In addition, form and instance input data are taken at construction time
     and passed to `process()`.
+
+    You must implement options.tforms_locale when every request process. You
+    can do it by:
+
+        class BaseHandler(tornado.web.RequestHandler):
+            def prepare(self):
+                options.tforms_locale = self.locale
     """
     __metaclass__ = FormMeta
 
-    def __init__(self, handler=None, obj=None, prefix='fm-', **kwargs):
+    def __init__(self, arguments=None, obj=None, prefix='fm-', **kwargs):
         """
-        :param handler:
-            Used to pass handler, usually `self`.
+        :param arguments:
+            Used to pass arguments, usually `self.request.arguments`.
         :param obj:
-            If `handler.request.arguments` has no data for a field, the form
+            If `self.request.arguments` has no data for a field, the form
             will try to get it from the passed object.
         :param prefix:
             If provided, all fields will have their name prefixed with the
@@ -209,7 +220,6 @@ class TornadoForm(BaseForm):
             form will assign the value of a matching keyword argument to the
             field, if provided.
         """
-        self.handler = handler
         self.obj = obj
         super(TornadoForm, self).__init__(self._unbound_fields, prefix=prefix)
 
@@ -218,8 +228,8 @@ class TornadoForm(BaseForm):
             # attributes with the same names.
             setattr(self, name, field)
 
-        if handler:
-            self.process(handler.request.arguments, obj, **kwargs)
+        if arguments:
+            self.process(arguments, obj, **kwargs)
         else:
             self.process(None, obj, **kwargs)
 
@@ -243,8 +253,8 @@ class TornadoForm(BaseForm):
             super(TornadoForm, self).__delattr__(name)
 
     def _get_locale(self):
-        if self.handler:
-            return self.handler.locale
+        if hasattr(options, 'tforms_locale'):
+            return options.tforms_locale
         return None
 
     def validate(self):
