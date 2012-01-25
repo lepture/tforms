@@ -10,6 +10,7 @@ __all__ = (
     'Field', 'TextField',
 )
 
+
 class _DummyLocale(object):
     def translate(self, message, plural_message=None, count=None):
         if plural_message is not None:
@@ -17,7 +18,10 @@ class _DummyLocale(object):
             return plural_message
         return message
 
+
 _unset_value = object()
+
+
 class Field(object):
     """
     Field base class
@@ -43,7 +47,7 @@ class Field(object):
         Construct a new field.
 
         :param label:
-            The label of the field. 
+            The label of the field.
         :param validators:
             A sequence of validators to call when `validate` is called.
         :param filters:
@@ -264,6 +268,7 @@ class Field(object):
     def _value(self):
         return to_unicode(self.data)
 
+
 class UnboundField(object):
     _formfield = True
     creation_counter = 0
@@ -280,6 +285,7 @@ class UnboundField(object):
 
     def __repr__(self):
         return '<UnboundField(%s, %r, %r)>' % (self.field_class.__name__, self.args, self.kwargs)
+
 
 class Label(object):
     """
@@ -324,11 +330,13 @@ class TextField(Field):
             return to_unicode(self.data)
         return to_unicode('')
 
+
 class HiddenField(TextField):
     """
     Represents an ``<input type="hidden">``.
     """
     widget = widgets.HiddenInput()
+
 
 class TextAreaField(TextField):
     """
@@ -343,6 +351,7 @@ class PasswordField(TextField):
     Represents an ``<input type="password">``.
     """
     widget = widgets.PasswordInput()
+
 
 class IntegerField(TextField):
     """
@@ -449,7 +458,6 @@ class DateField(DateTimeField):
                 raise ValueError(self.translate('Not a valid date value'))
 
 
-
 class SelectFieldBase(Field):
     option_widget = widgets.Option()
 
@@ -497,6 +505,7 @@ class SelectField(SelectFieldBase):
 
     def iter_choices(self):
         for value, label in self.choices:
+            label = self.translate(label)
             yield (value, label, self.coerce(value) == self.data)
 
     def process_data(self, value):
