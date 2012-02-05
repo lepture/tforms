@@ -2,7 +2,7 @@
 import itertools
 import datetime
 import time
-from tornado.escape import to_unicode
+from tornado.escape import to_unicode, utf8
 from tforms import widgets
 from tforms.validators import StopValidation
 
