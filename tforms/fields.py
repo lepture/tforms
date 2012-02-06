@@ -362,7 +362,7 @@ class IntegerField(TextField):
         if self.raw_data:
             return self.raw_data[0]
         elif self.data is not None:
-            return to_unicode(self.data)
+            return to_unicode(str(self.data))
         return ''
 
     def process_formdata(self, valuelist):
