@@ -152,7 +152,8 @@ class Required(object):
         self.message = message
 
     def __call__(self, form, field):
-        if not field.data or isinstance(field.data, basestring) and not field.data.strip():
+        if (not isinstance(field.data, int) and not field.data) or \
+           isinstance(field.data, basestring) and not field.data.strip():
             if self.message is None:
                 self.message = field.translate(u'This field is required.')
 
