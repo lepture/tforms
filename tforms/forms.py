@@ -270,6 +270,7 @@ class TornadoForm(BaseForm):
 
         return super(TornadoForm, self).validate(extra)
 
+
 class _TornadoArgumentsWrapper(dict):
     def __getattr__(self, key):
         try:
@@ -294,8 +295,8 @@ class _TornadoArgumentsWrapper(dict):
                 if isinstance(v, unicode):
                     v = re.sub(r"[\x00-\x08\x0e-\x1f]", " ", v)
                 values.append(v)
+
+            values.reverse()
             return values
         except KeyError:
             raise AttributeError
-
-
