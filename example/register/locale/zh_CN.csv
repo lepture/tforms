@@ -1,0 +1,32 @@
+# tforms
+"Not a valid integer value"
+"Not a valid float value"
+"Not a valid datetime value"
+"Not a valid date value"
+"Invalid Choice: could not coerce"
+"Not a valid choice"
+"Invalid choice(s): one or more data inputs could not be coerced"
+"'%(value)s' is not a valid choice for this field"
+"Invalid field name '%s'."
+"Field must be equal to %(other_name)s."
+"Field must be at least %(min)d character long."
+"Field cannot be longer than %(max)d character."
+"Field must be between %(min)d and %(max)d characters long."
+"Number must be greater than %(min)s."
+"Number must be less than %(max)s.", 小于%(max)s的数字
+"Number must be between %(min)s and %(max)s."
+"This field is required.", 该项为必填项
+"Invalid input."
+"Invalid email address."
+"Invalid IP address."
+"Invalid URL."
+"Invalid value, must be one of: %(values)s."
+"Invalid value, can't be any of: %(values)s."
+
+
+"Username", 用户名
+"Username can only contain English characters and digits"
+"Email", 邮箱
+"Password", 密码
+"Confirm", 确认密码
+"Username can only contain English characters and digits", 用户名必须为英文字符或数字

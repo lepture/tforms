@@ -1,0 +1,52 @@
+<!DOCTYPE HTML>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Signup</title>
+        <style type="text/css">
+            .fm{padding:14px;}
+            .fm ul{list-style-type:none;margin:0;padding:0;}
+            .fm-row{padding:5px 1px 7px 130px;line-height:24px;zoom:1;}
+            .fm-row:after{display:block;content:"";visibility:hidden;font-size:0;clear:both;height:0;}
+            .fm-item{padding-bottom:3px;}
+            .fm-label{float:left;width:120px;margin-top:5px;margin-left:-130px;color:#222;background:none;text-align:right;vertical-align:middle;}
+            .fm-required .fm-label{font-weight:bold;}
+            .fm-required .fm-label:after{content:"*";padding-left:2px;vertical-align:middle;color:#cc3300;}
+            .fm-item input.fm-text{width:300px;}
+            .fm-item input,.fm-text{float:left;border:1px solid #dadada;padding:6px;outline:0 none;font-size:16px;color:#333;border-radius:4px;text-shadow:0 1px 0 #fff;}
+            .fm-item input:focus,.fm-text:focus,#recaptcha_response_field:focus{border-color:#c1c1c1;}
+            .fm-item select,select.fm-text{padding:0 6px;margin-top:9px;background:#fff;}
+            .fm-item textarea{width:360px;height:3em;}
+            .fm-item .fm-radio{float:left;margin-right:14px;}
+            .fm-radio input{margin:3px;}
+            .fm-explain{font-size:0.7em;color:#999;clear:left;}
+            .fm-error,.fm-error li{margin:0;color:#D14747;}
+            .ui-btn{cursor:pointer;display:inline-block;background-color:#e6e6e6;background-repeat:no-repeat;background-image:-webkit-linear-gradient(270deg, #ffffff 0, #e6e6e6 100%);background-image:-moz-linear-gradient(270deg, #ffffff 0, #e6e6e6 100%);background-image:-ms-linear-gradient(270deg, #ffffff 0, #e6e6e6 100%);background-image:-o-linear-gradient(270deg, #ffffff 0, #e6e6e6 100%);background-image:linear-gradient(270deg, #ffffff 0, #e6e6e6 100%);filter:progid:dximagetransform.microsoft.gradient(startColorstr='#ffffff', endColorstr='#e6e6e6', GradientType=0);padding:5px 24px 6px;text-shadow:0 1px 1px rgba(255, 255, 255, 0.75);color:#333;font-weight:bold;font-family:inherit;line-height:normal;border:1px solid #dadada;border-bottom-color:#bbb;border-radius:4px;box-shadow:inset 0 1px 0 rgba(255, 255, 255, 0.2),0 1px 2px rgba(0, 0, 0, 0.05);-webkit-transition:0.1s linear all;-moz-transition:0.1s linear all;-ms-transition:0.1s linear all;-o-transition:0.1s linear all;transition:0.1s linear all;}
+            .ui-btn:hover{background-position:0 -15px;color:#333333;text-decoration:none;cursor:pointer;}
+            .ui-btn{font-size:1em;font-weight:bold;}
+        </style>
+    </head>
+    <body>
+        <form action="/" method="post" class="fm">
+            {% for field in form %}
+            <div class="fm-row">
+                <div class="fm-item{%if field.required%} fm-required{%end%}">
+                    {{field.label()}} {{field(class_='fm-text')}}
+                </div>
+                {% if field.errors or field.description %}
+                <div class="fm-explain">
+                    {% if field.errors %}
+                    <ul class="fm-error">{% for error in field.errors %}<li>{{error}}</li>{% end %}</ul>
+                    {% else %}
+                    {{ field.description }}
+                    {% end %}
+                </div>
+                {% end %}
+            </div>
+            {% end %}
+            <div class="fm-row">
+                <button type="submit" class="ui-btn">{{ _("Signup") }}</button>
+            </div>
+        </form>
+    </body>
+</html>
